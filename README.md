@@ -1,6 +1,6 @@
 # gdrive-static
 
-Server static folder from google drive.
+Serve a static folder from google drive.
 
 ```
 ROOT_FOLDER=root folder id
