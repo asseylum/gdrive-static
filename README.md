@@ -4,8 +4,6 @@ Server static folder from google drive.
 
 ```
 ROOT_FOLDER=root folder id
-CRON_DATE=* * * * * (default each day)
-URL=mongo connection url
 CREDS=google service account creds
 ```
 
