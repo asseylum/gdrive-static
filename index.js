@@ -53,14 +53,10 @@ async function main() {
 
       if (!fs.existsSync(tempFile)) {
         fs.mkdirSync(tempFolder, { recursive: true });
+        await googleDriveInstance.getFile(target, tempFolder);
       }
 
-      if (fs.existsSync(tempFile)) {
-        await send(ctx, ctx.url, { root: "./tmp", maxage: 380000000, immutable: true });
-      } else {
-        await googleDriveInstance.getFile(target, tempFolder);
-        await send(ctx, ctx.url, { root: "./tmp", maxage: 380000000, immutable: true });
-      }
+      await send(ctx, ctx.url, { root: "./tmp", maxage: 380000000, immutable: true });
     } else {
       ctx.body = "Not found";
     }
