@@ -11,6 +11,30 @@ const googleDriveInstance = new NodeGoogleDrive({
 
 const app = new Koa();
 
+const getTargetFolder = async (
+  folders,
+  index = 0,
+  folder = process.env.ROOT_FOLDER
+) => {
+  const target = folders[index];
+  const { files } = await googleDriveInstance.service.files.listAsync({
+    q: `name = '${target}' and mimeType = 'application/vnd.google-apps.folder' and '${folder}' in parents`,
+    fields: "files(id, name), files/parents",
+  });
+
+  if (files.length === 0) {
+    return null;
+  }
+
+  if (folders.length > index + 1) {
+    const result = await getTargetFolder(folders, index + 1, files[0].id);
+
+    return result;
+  }
+
+  return files[0].id;
+};
+
 async function main() {
   await googleDriveInstance.useServiceAccountAuth(
     JSON.parse(process.env.CREDS)
@@ -29,41 +53,51 @@ async function main() {
     })
   );
 
-  app.use((ctx, next) => {
+  app.use(async (ctx, next) => {
     const start = Date.now();
-    return next().then(() => {
-      const ms = Date.now() - start;
-      console.log(`${ctx.method} ${ctx.url} - ${ms}ms`);
-    });
+
+    await next()
+
+    const ms = Date.now() - start;
+    console.log(`${ctx.method} ${ctx.url} - ${ms}ms`);
   });
 
   app.use(async (ctx) => {
-    const urlSpitted = ctx.url.split("/");
+    const urlSpitted = ctx.url.split("/").filter(Boolean);
     const fileName = urlSpitted[urlSpitted.length - 1];
-    const { files } = await googleDriveInstance.service.files.listAsync({
-      q: `name = '${fileName}'`,
-    });
-    if (files.length) {
-      const target = files[1] || files[0];
+    urlSpitted.pop();
+    const path = urlSpitted.join("/");
+    const tempFolder = `./tmp/${path}`;
+    const tempFile = `./tmp${ctx.url}`;
 
-      urlSpitted.pop();
-      const path = urlSpitted.join("/");
-      const tempFolder = `./tmp${path}`;
-      const tempFile = `./tmp${ctx.url}`;
-
-      if (!fs.existsSync(tempFile)) {
-        fs.mkdirSync(tempFolder, { recursive: true });
+    if (!fs.existsSync(tempFile)) {
+      const folder = await getTargetFolder(urlSpitted);
+      if (!folder) {
+        ctx.body = "Not found"
+        return
       }
 
-      if (fs.existsSync(tempFile)) {
-        await send(ctx, ctx.url, { root: "./tmp", maxage: 380000000, immutable: true });
-      } else {
-        await googleDriveInstance.getFile(target, tempFolder);
-        await send(ctx, ctx.url, { root: "./tmp", maxage: 380000000, immutable: true });
+      const { files } = await googleDriveInstance.service.files.listAsync({
+        q: `name = '${fileName}' and '${folder}' in parents`,
+        fields: "files(id, name, mimeType), files/parents",
+      });
+
+      const [target] = files;
+
+      if (!target) {
+        ctx.body = "Not found"
+        return
       }
-    } else {
-      ctx.body = "Not found";
+
+      fs.mkdirSync(tempFolder, { recursive: true });
+      await googleDriveInstance.getFile(target, tempFolder);
     }
+
+    await send(ctx, ctx.url, {
+      root: "./tmp",
+      maxage: 380000000,
+      immutable: true,
+    });
   });
 
   app.listen(process.env.PORT || 3000);
