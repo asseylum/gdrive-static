@@ -1,6 +1,7 @@
 require("dotenv").config();
 const Koa = require("koa");
 const send = require("koa-send");
+const logger = require('koa-logger')
 const NodeGoogleDrive = require("node-google-drive");
 const fs = require("fs");
 const compress = require("koa-compress");
@@ -53,14 +54,7 @@ async function main() {
     })
   );
 
-  app.use(async (ctx, next) => {
-    const start = Date.now();
-
-    await next()
-
-    const ms = Date.now() - start;
-    console.log(`${ctx.method} ${ctx.url} - ${ms}ms`);
-  });
+  app.use(logger())
 
   app.use(async (ctx) => {
     const urlSpitted = ctx.url.split("/").filter(Boolean);
