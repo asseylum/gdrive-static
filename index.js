@@ -99,6 +99,14 @@ async function main() {
 }
 
 try {
+  if (!process.env.CREDS) {
+    throw new Error('No creds has been provided')
+  }
+
+  if (!process.env.ROOT_FOLDER) {
+    throw new Error('No root folder has been provided')
+  }
+
   main();
 } catch (error) {
   console.log(error);
