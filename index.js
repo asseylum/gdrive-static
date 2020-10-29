@@ -1,7 +1,7 @@
 require("dotenv").config();
 const Koa = require("koa");
 const send = require("koa-send");
-const logger = require('koa-logger')
+const logger = require("koa-logger");
 const NodeGoogleDrive = require("node-google-drive");
 const fs = require("fs");
 const compress = require("koa-compress");
@@ -36,6 +36,28 @@ const getTargetFolder = async (
   return files[0].id;
 };
 
+const getIfOnlyOneFile = async (fileName) => {
+  const { files } = await googleDriveInstance.service.files.listAsync({
+    q: `name = '${fileName}'`,
+    fields: "files(id, name, mimeType), files/parents",
+  });
+
+  if (files.length === 1) {
+    return files[0];
+  }
+
+  return false;
+};
+
+const getTargetFileByFolder = async (fileName, folder) => {
+  const { files } = await googleDriveInstance.service.files.listAsync({
+    q: `name = '${fileName}' and '${folder}' in parents`,
+    fields: "files(id, name, mimeType), files/parents",
+  });
+
+  return files[0];
+};
+
 async function main() {
   await googleDriveInstance.useServiceAccountAuth(
     JSON.parse(process.env.CREDS)
@@ -54,7 +76,7 @@ async function main() {
     })
   );
 
-  app.use(logger())
+  app.use(logger());
 
   app.use(async (ctx) => {
     const urlSpitted = ctx.url.split("/").filter(Boolean);
@@ -65,22 +87,20 @@ async function main() {
     const tempFile = `./tmp${ctx.url}`;
 
     if (!fs.existsSync(tempFile)) {
-      const folder = await getTargetFolder(urlSpitted);
-      if (!folder) {
-        ctx.body = "Not found"
-        return
-      }
-
-      const { files } = await googleDriveInstance.service.files.listAsync({
-        q: `name = '${fileName}' and '${folder}' in parents`,
-        fields: "files(id, name, mimeType), files/parents",
-      });
-
-      const [target] = files;
-
+      let target = await getIfOnlyOneFile(fileName);
       if (!target) {
-        ctx.body = "Not found"
-        return
+        const folder = await getTargetFolder(urlSpitted);
+        if (!folder) {
+          ctx.body = "Not found";
+          return;
+        }
+
+        target = await getTargetFileByFolder(fileName, folder);
+
+        if (!target) {
+          ctx.body = "Not found";
+          return;
+        }
       }
 
       fs.mkdirSync(tempFolder, { recursive: true });
@@ -100,11 +120,11 @@ async function main() {
 
 try {
   if (!process.env.CREDS) {
-    throw new Error('No creds has been provided')
+    throw new Error("No creds has been provided");
   }
 
   if (!process.env.ROOT_FOLDER) {
-    throw new Error('No root folder has been provided')
+    throw new Error("No root folder has been provided");
   }
 
   main();
