@@ -27,6 +27,10 @@ const getTargetFolder = async (
     return null;
   }
 
+  if (files.length === 1 && index === 0) {
+    return files[0].id
+  }
+
   if (folders.length > index + 1) {
     const result = await getTargetFolder(folders, index + 1, files[0].id);
 
